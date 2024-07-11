@@ -14,7 +14,7 @@ class Request:
         self.method: str = method
         self.url: str = url
         self.headers: dict[str, str] = headers
-        self._set_body(body)
+        self._body = body
 
     @staticmethod
     def parse(raw_request: str) -> "Request" | None:
@@ -29,7 +29,7 @@ class Request:
             return Request(method, url, headers, body)
         except Exception:
             return None
-        
+
     @staticmethod
     def new_ws(url):
         return Request(
@@ -61,7 +61,7 @@ class Request:
         self.headers["Content-Length"] = len(bytes(body))
 
     def _del_body(self) -> None:
-        pass
+        del self._body
 
     body = property(_get_body, _set_body, _del_body)
 
@@ -75,7 +75,7 @@ class Response:
     ) -> None:
         self.status = status
         self.headers = headers
-        self._set_body
+        self._body = body
 
     @staticmethod
     def parse(raw_response: str) -> "Response" | None:
@@ -118,7 +118,7 @@ class Response:
         self.headers["Content-Length"] = len(bytes(body))
 
     def _del_body(self) -> None:
-        pass
+        del self._body
 
     body = property(_get_body, _set_body, _del_body)
 
