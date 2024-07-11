@@ -58,13 +58,9 @@ class Frame:
         else:
             length_ext = []
             length = self.length
-        return bytes([
-            fin | self.opcode,
-            mask | length,
-            *length_ext,
-            *self.mask,
-            *self.payload
-        ])
+        return bytes(
+            [fin | self.opcode, mask | length, *length_ext, *self.mask, *self.payload]
+        )
 
 
 class Websocket:
@@ -168,5 +164,3 @@ class WebsocketServer:
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         self.close()
-
-

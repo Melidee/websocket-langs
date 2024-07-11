@@ -25,7 +25,7 @@ class Url:
         pairs = [pair.split("=") for pair in query.split("&")]
         query = {key: val for [key, val] in pairs}
         return Url(proto, host, port, "/" + path, query, fragment)
-    
+
     def hostpair(self) -> tuple[str, int]:
         return (self.host, self.port)
 
@@ -46,5 +46,5 @@ class Url:
         fragment = self.fragment
         if fragment != "" and fragment[0] != "#":
             fragment = f"#{fragment}"
-        
+
         return f"{proto}//{self.host}{port}{self.path}{query}{fragment}"
