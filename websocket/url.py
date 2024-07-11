@@ -25,15 +25,26 @@ class Url:
         pairs = [pair.split("=") for pair in query.split("&")]
         query = {key: val for [key, val] in pairs}
         return Url(proto, host, port, "/" + path, query, fragment)
+    
+    def hostpair(self) -> tuple[str, int]:
+        return (self.host, self.port)
 
     def __str__(self) -> str:
         proto = self.proto
         if proto[-1] != ":":
             proto += ":"
+        port = self.port
+        if port[0] != ":":
+            port = f":{port}"
+        if str(self.port) == "80" and (proto == "http:" or proto == "ws:"):
+            port = ""
+        if str(self.port) == "443" and (proto == "https:" or proto == "wss:"):
+            port = ""
         query = ""
         if self.query != {}:
             query = "?" + "&".join([f"{key}={val}" for (key, val) in query.items])
         fragment = self.fragment
         if fragment != "" and fragment[0] != "#":
-            fragment = "#" + fragment
-        return f"{proto}//{self.host}:{self.port}{self.path}{query}{fragment}"
+            fragment = f"#{fragment}"
+        
+        return f"{proto}//{self.host}{port}{self.path}{query}{fragment}"
