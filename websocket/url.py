@@ -17,11 +17,11 @@ class Url:
 
     @staticmethod
     def parse(raw_url: str) -> "Url":
-        [proto, rest] = raw_url.split("//", 1)
-        [host, rest] = rest.split(":", 1)
-        [port, rest] = rest.split("/", 1)
-        [path, rest] = rest.split("?", 1)
-        [query, fragment] = rest.split("#", 1)
+        [proto, right] = raw_url.split("//", 1)
+        [host, right] = right.split(":", 1)
+        [port, right] = right.split("/", 1)
+        [path, right] = right.split("?", 1)
+        [query, fragment] = right.split("#", 1)
         pairs = [pair.split("=") for pair in query.split("&")]
         query = {key: val for [key, val] in pairs}
         return Url(proto, host, port, "/" + path, query, fragment)
