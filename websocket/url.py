@@ -1,14 +1,16 @@
+from typing import Self
+
 class Url:
     def __init__(
         self,
-        proto: str,
+        scheme: str,
         host: str,
         port: str,
         path: str = "",
         query: dict[str, str] = {},
         fragment: str = "",
     ) -> None:
-        self.proto = proto
+        self.scheme = scheme
         self.host = host
         self.port = port
         self.path = path
@@ -16,7 +18,13 @@ class Url:
         self.fragment = fragment
 
     @staticmethod
-    def parse(raw_url: str) -> "Url":
+    def parse(raw_url: str) -> Self | None:
+        """
+        Parses a URL from a string
+
+        Returns:
+            Self | None: A `Url` object if parsing is successful, or `None` if parsing fails
+        """
         [proto, right] = raw_url.split("//", 1)
         [host, right] = right.split(":", 1)
         [port, right] = right.split("/", 1)
@@ -30,7 +38,7 @@ class Url:
         return (self.host, self.port)
 
     def __str__(self) -> str:
-        proto = self.proto
+        proto = self.scheme
         if proto[-1] != ":":
             proto += ":"
         port = self.port
