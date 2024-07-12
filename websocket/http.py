@@ -2,6 +2,11 @@ import hashlib, os
 from base64 import b64encode
 from typing import Self
 
+HEADER_WS_VERSION = "Sec-WebSocket-Version"
+HEADER_WS_KEY = "Sec-WebSocket-Key"
+HEADER_WS_ACCEPT = "Sec-WebSocket-Accept"
+HEADER_WS_PROTOCOL = "Sec-WebSocket-Protocol"
+HEADER_WS_EXTENSIONS = "Sec-WebSocket-Extensions"
 
 class Request:
     def __init__(
@@ -14,22 +19,20 @@ class Request:
         self.method: str = method
         self.url: str = url
         self.headers: dict[str, str] = headers
-        self._body = body
+        self._body = ""
+        self._set_body(body)
 
     @staticmethod
     def parse(raw_request: str) -> Self | None:
-        try:
-            lines = raw_request.split("\r\n")
-            lines, body = lines[: lines.index("")], lines[lines.index("") + 1 :]
-            body = "\r\n".join(body)
-            [method, url, _] = lines[0].split(" ", 3)
-            headers = {}
-            for header_pair in lines[1:]:
-                (key, val) = header_pair.split(": ")
-                headers[key] = val
-            return Request(method, url, headers, body)
-        except Exception:
-            return None
+        lines = raw_request.split("\r\n")
+        lines, body = lines[: lines.index("")], lines[lines.index("") + 1 :]
+        body = "\r\n".join(body)
+        [method, url, _] = lines[0].split(" ", 3)
+        headers = {}
+        for header_pair in lines[1:]:
+            (key, val) = header_pair.split(": ")
+            headers[key] = val
+        return Request(method, url, headers, body)
 
     @staticmethod
     def new_ws(url):
@@ -40,18 +43,19 @@ class Request:
                 "Host": url.host,
                 "Upgrade": "websocket",
                 "Connection": "Upgrade",
-                "Sec-WebSocket-Key": new_sec_ws_key(),
-                "Sec-WebSocket-Version": "13",
+                HEADER_WS_KEY: new_sec_ws_key(),
+                HEADER_WS_VERSION: "13",
             },
         )
 
     def is_valid_ws_request(self):
         return (
-            self.method != "GET"
-            or self.headers.get("Upgrade").casefold() != "websocket"
-            or self.headers.get("Connection").casefold() != "upgrade"
-            or self.headers.get("Sec-Websocket-Version") != "13"
-            or self.headers.get("Sec-Websocket-Key") == None
+            self.method == "GET"
+            and self.headers.get("Host") != None
+            and self.headers.get("Upgrade") == "websocket"
+            and self.headers.get("Connection") == "Upgrade"
+            and self.headers.get(HEADER_WS_VERSION) == "13"
+            and self.headers.get(HEADER_WS_KEY) != None
         )
 
     def _get_body(self) -> str:
@@ -59,7 +63,7 @@ class Request:
 
     def _set_body(self, body) -> None:
         self._body = body
-        self.headers["Content-Length"] = len(bytes(body))
+        self.headers["Content-Length"] = str(len(body.encode("utf-8")))
 
     def _del_body(self) -> None:
         del self._body
@@ -110,7 +114,7 @@ class Response:
             headers={
                 "Upgrade": "websocket",
                 "Connection": "Upgrade",
-                "Sec-Websocket-Accept": make_sec_ws_accept(ws_key),
+                HEADER_WS_ACCEPT: make_sec_ws_accept(ws_key),
             },
         )
 
@@ -119,7 +123,7 @@ class Response:
             self.status != "101 Switching Protocols"
             or self.headers.get("Upgrade").casefold() != "websocket"
             or self.headers.get("Connection").casefold() != "upgrade"
-            or self.headers.get("Sec-WebSocket-Accept") != make_sec_ws_accept(ws_key)
+            or self.headers.get(HEADER_WS_ACCEPT) != make_sec_ws_accept(ws_key)
         )
 
     def _get_body(self) -> str:
