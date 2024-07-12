@@ -1,6 +1,6 @@
-import hashlib
+import hashlib, os
 from base64 import b64encode
-import os
+from typing import Self
 
 
 class Request:
@@ -17,10 +17,11 @@ class Request:
         self._body = body
 
     @staticmethod
-    def parse(raw_request: str) -> "Request" | None:
+    def parse(raw_request: str) -> Self | None:
         try:
             lines = raw_request.split("\r\n")
             lines, body = lines[: lines.index("")], lines[lines.index("") + 1 :]
+            body = "\r\n".join(body)
             [method, url, _] = lines[0].split(" ", 3)
             headers = {}
             for header_pair in lines[1:]:
@@ -68,6 +69,17 @@ class Request:
     def __str__(self) -> str:
         return f"{self.method} {self.url} HTTP/1.1\r\n{format_headers(self.headers)}\r\n{self._body}"
 
+    def __eq__(self, other: object) -> bool:
+        try:
+            return (
+                self.method == other.method
+                and self.url == other.url
+                and self.headers == other.headers
+                and self.body == other.body
+            )
+        except AttributeError:
+            return False
+
 
 class Response:
     def __init__(
@@ -78,7 +90,7 @@ class Response:
         self._body = body
 
     @staticmethod
-    def parse(raw_response: str) -> "Response" | None:
+    def parse(raw_response: str) -> Self | None:
         try:
             lines = raw_response.split("\r\n")
             lines, body = lines[: lines.index("")], lines[lines.index("") + 1 :]
@@ -126,6 +138,16 @@ class Response:
         return (
             f"HTTP/1.1 {self.status}\r\n{format_headers(self.headers)}\r\n{self.body}"
         )
+
+    def __eq__(self, other: object) -> bool:
+        try:
+            return (
+                self.status == other.status
+                and self.headers == other.headers
+                and self.body == other.body
+            )
+        except AttributeError:
+            return False
 
 
 def format_headers(headers: dict[str, str]) -> str:
