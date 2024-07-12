@@ -23,14 +23,25 @@ class Request:
         self._set_body(body)
 
     @staticmethod
-    def parse(raw_request: str) -> Self | None:
+    def parse(raw_request: str) -> Self:
         lines = raw_request.split("\r\n")
-        lines, body = lines[: lines.index("")], lines[lines.index("") + 1 :]
+        try:
+            lines, body = lines[: lines.index("")], lines[lines.index("") + 1 :]
+        except ValueError:
+            raise ValueError("No trailing line after headers")
         body = "\r\n".join(body)
-        [method, url, _] = lines[0].split(" ", 3)
+        try:
+            method, url, proto = lines[0].split(" ")
+        except ValueError or IndexError:
+            raise ValueError(f"Invalid first line of request: {lines[0]}")
+        if proto != "HTTP/1.1" or proto != "HTTP/1.0":
+            raise ValueError("Invalid HTTP protocol specified by request")
         headers = {}
         for header_pair in lines[1:]:
-            (key, val) = header_pair.split(": ")
+            try:
+                key, val = header_pair.split(": ", 1)
+            except ValueError:
+                ValueError(f"Invalid Header format: {header_pair}")
             headers[key] = val
         return Request(method, url, headers, body)
 
