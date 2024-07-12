@@ -1,13 +1,15 @@
 [tool.poetry]
-name = "websockets-py"
+name = "websocket"
 version = "0.1.0"
 description = "A simple websocket implementation in python"
 authors = ["Amelia Rossi <w.ardecan@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 
+[tool.poetry.dev-dependencies]
+pytest = "^8.2"
 
 [build-system]
 requires = ["poetry-core"]
