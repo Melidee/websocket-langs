@@ -21,6 +21,32 @@ class TestRequest:
         parsed = Request.parse(req)
         assert parsed.headers.get("Content-Length") == "13"
 
+    def test_should_reject_invalid_request_line(self):
+        req = "WRONG GET / HTTP/1.1\r\n\r\n"
+        try:
+            _ = Request.parse(req)
+            assert False
+        except ValueError:
+            assert True
+
+    def test_should_reject_invalid_proto(self):
+        req = "GET / HTTP/0.9\r\n\r\n"
+        try:
+            parsed = Request.parse(req)
+            print(f"------ proto ------\n{parsed.proto}")
+            assert False
+        except ValueError:
+            assert True
+
+    def test_should_reject_invalid_header_format(self):
+        req = "GET / HTTP/1.1\r\nHost hostname\r\n\r\n"
+        try:
+            parsed = Request.parse(req)
+            print(parsed.headers)
+            assert False
+        except ValueError:
+            assert True
+
     def test_ws_default_request_is_valid(self):
         url = Url("ws:", "example.com", "8080", "/chat")
         req = Request.new_ws(url)
