@@ -1,4 +1,6 @@
 import socket, os
+from typing import Self
+from websocket import http
 from websocket.http import Request, Response
 from websocket.url import Url
 
@@ -20,7 +22,7 @@ class Frame:
             opcode (int): The opcode specifying the kind of message, use one of the Frame
                     constants such as `Frame.TEXT`
             payload (bytes): The data contained by this frame
-            mask (bytes): The mask key, either an empty `bytes` object if not masking or a  
+            mask (bytes): The mask key, either an empty `bytes` object if not masking or a
                     `bytes` object of length 4
         """
         self.opcode = opcode
@@ -30,7 +32,7 @@ class Frame:
         self.is_masked = len(mask) == 0
 
     @staticmethod
-    def parse(raw_frame: bytes) -> "Frame" | None:
+    def parse(raw_frame: bytes) -> Self | None:
         """
         Parses a binary frame into a Frame object
 
@@ -89,6 +91,7 @@ class WebSocket:
     """
     A Websocket connection as specified by RFC 6455
     """
+
     def __init__(
         self,
         conn: socket.socket,
@@ -97,13 +100,13 @@ class WebSocket:
         extensions: list[str] = [],
     ) -> None:
         """
-        Constructs a `WebSocket` connection from parts, note that `WebSocket` should usually 
+        Constructs a `WebSocket` connection from parts, note that `WebSocket` should usually
         not be constructed directly, and users should instead use `Websocket.connect()`
         to open client side connections, or use a `WebSocketServer` to open server side
         connections.
 
         Args:
-            conn: A TCP connection for the websocket connection, assumes 
+            conn: A TCP connection for the websocket connection, assumes
                     a websocket handshake has already been performed.
             is_server: Describes if the connection is from a server or client.
             protocols: A list of protocols on top of the WebSocket connection. Defaults to [].
@@ -116,8 +119,10 @@ class WebSocket:
 
     @staticmethod
     def connect(
-        url: str | Url, protocols: list[str] = [], extensions: list[str] = []
-    ) -> "WebSocket" | None:
+        url: Url | str | tuple[str, int],
+        protocols: list[str] = [],
+        extensions: list[str] = [],
+    ) -> Self | None:
         """Connect to a websocket server and perform an opening handshake
 
         Args:
@@ -133,12 +138,12 @@ class WebSocket:
         conn = socket.create_connection(url.hostpair(), 3)
 
         req = Request.new_ws(url)
-        ws_key = req.headers["Sec-WebSocket-Key"]
+        ws_key = req.headers[http.HEADER_WS_KEY]
 
         if protocols != []:
-            req.headers["Sec-WebSocket-Protocol"] = ", ".join(protocols)
+            req.headers[http.HEADER_WS_PROTOCOL] = ", ".join(protocols)
         if extensions != []:
-            req.headers["Sec-WebSocket-Extensions"] = ", ".join(extensions)
+            req.headers[http.HEADER_WS_EXTENSIONS] = ", ".join(extensions)
         conn.sendall(str(req))
 
         data = conn.recv(2048)
@@ -155,7 +160,9 @@ class WebSocket:
         Args:
             msg: The data to send.
         """
-        frame = Frame(Frame.BINARY, msg, mask=os.urandom(4) if self.is_server else bytes())
+        frame = Frame(
+            Frame.BINARY, msg, mask=os.urandom(4) if self.is_server else bytes()
+        )
         self.conn.sendall(bytes(frame))
 
     def recv(self, continues=bytes()) -> bytes:
@@ -171,7 +178,7 @@ class WebSocket:
             data += buf
         frame = Frame.parse(data)
         if frame.opcode == Frame.CONTINUE:
-            return self.recv(continues=continues+frame.payload)
+            return self.recv(continues=continues + frame.payload)
         return continues + frame.payload
 
     def send_text(self, msg: str):
@@ -181,12 +188,14 @@ class WebSocket:
         Args:
             msg: The text data to send.
         """
-        frame = Frame(Frame.TEXT, msg, mask=os.urandom(4) if self.is_server else bytes())
+        frame = Frame(
+            Frame.TEXT, msg, mask=os.urandom(4) if self.is_server else bytes()
+        )
         self.conn.sendall(bytes(frame))
 
     def recv_text(self, continues="") -> str:
         """
-        Recieve bytes from the WebSocket connection.
+        Recieve text from the WebSocket connection.
 
         Returns:
             str: The binary data recieved from the connection.
@@ -197,7 +206,7 @@ class WebSocket:
             data += buf
         frame = Frame.parse(data)
         if frame.opcode == Frame.CONTINUE:
-            return self.recv(continues=continues+frame.payload)
+            return self.recv(continues=continues + frame.payload)
         return continues + frame.payload
 
     def close(self):
@@ -213,7 +222,7 @@ class WebSocket:
 class WebSocketServer:
     def __init__(
         self,
-        addr: tuple[str, int] = ("", 8080),
+        addr: tuple[str, int] = ("", 80),
         protocols: list[str] = [],
         extensions: list[str] = [],
     ) -> None:
@@ -234,7 +243,7 @@ class WebSocketServer:
         if req.is_valid_ws():
             conn.close()
             return None
-        ws_key = req.headers["Sec-WebSocket-Key"]
+        ws_key = req.headers[http]
         res = Response.new_ws(ws_key)
         conn.sendall(str(res).encode("utf-8"))
 
