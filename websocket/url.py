@@ -1,5 +1,6 @@
 from typing import Self
 
+
 class Url:
     def __init__(
         self,
@@ -10,12 +11,12 @@ class Url:
         query: dict[str, str] = {},
         fragment: str = "",
     ) -> None:
-        self.scheme = scheme
-        self.host = host
-        self.port = port
-        self.path = path
-        self.query = query
-        self.fragment = fragment
+        self.scheme: str = scheme
+        self.host: str = host
+        self.port: str = port
+        self.path: str = path
+        self.query: dict[str, str] = query
+        self.fragment: str = fragment
 
     @staticmethod
     def parse(raw_url: str) -> Self | None:
@@ -35,18 +36,23 @@ class Url:
         return Url(proto, host, port, "/" + path, query, fragment)
 
     def hostpair(self) -> tuple[str, int]:
-        return (self.host, self.port)
+        """
+        Gives the host and port in a tuple, as required by functions like socket.bind((host, port))
+
+        Returns:
+            (str, int): The tuple hostpair
+        """
+        return (self.host, int(self.port.strip(":")))
 
     def __str__(self) -> str:
-        proto = self.scheme
-        if proto[-1] != ":":
-            proto += ":"
-        port = self.port
-        if port[0] != ":":
-            port = f":{port}"
-        if str(self.port) == "80" and (proto == "http:" or proto == "ws:"):
+        """
+        Formats parts into a url string
+        """
+        scheme = self.scheme.strip(":")
+        port = self.port.strip(":")
+        if str(self.port) == "80" and (scheme == "http" or scheme == "ws"):
             port = ""
-        if str(self.port) == "443" and (proto == "https:" or proto == "wss:"):
+        if str(self.port) == "443" and (scheme == "https" or scheme == "wss"):
             port = ""
         query = ""
         if self.query != {}:
@@ -54,5 +60,4 @@ class Url:
         fragment = self.fragment
         if fragment != "" and fragment[0] != "#":
             fragment = f"#{fragment}"
-
-        return f"{proto}//{self.host}{port}{self.path}{query}{fragment}"
+        return f"{scheme}//{self.host}{port}{self.path}{query}{fragment}"
