@@ -1,5 +1,4 @@
-from typing import Self
-
+from typing import Optional
 
 class Url:
     def __init__(
@@ -19,21 +18,35 @@ class Url:
         self.fragment: str = fragment
 
     @staticmethod
-    def parse(raw_url: str) -> Self | None:
+    def parse(raw_url: str) -> Optional["Url"]:
         """
         Parses a URL from a string
 
         Returns:
             Self | None: A `Url` object if parsing is successful, or `None` if parsing fails
         """
-        [proto, right] = raw_url.split("//", 1)
-        [host, right] = right.split(":", 1)
-        [port, right] = right.split("/", 1)
-        [path, right] = right.split("?", 1)
-        [query, fragment] = right.split("#", 1)
-        pairs = [pair.split("=") for pair in query.split("&")]
-        query = {key: val for [key, val] in pairs}
-        return Url(proto, host, port, "/" + path, query, fragment)
+        scheme, host, port, path, fragment = [""] * 6
+        query = {}
+        if "://" in raw_url:
+            [scheme, right] = raw_url.split("://", 1)
+        if ":" in right:
+            [host, right] = right.split(":", 1)
+        if "/" in right:
+            [port, right] = right.split("/", 1)
+        elif right != "":
+            port = right
+        if "?" in right:
+            [path, right] = right.split("?", 1)
+        if "#" in right:
+            [query_raw, fragment] = right.split("#", 1)
+            pairs = [pair.split("=") for pair in query_raw.split("&")]
+            query = {key: val for [key, val] in pairs}
+        print()
+        if port == "" and (scheme == "http" or scheme == "ws"):
+            port = "80"
+        if port == "" and (scheme == "https" or scheme == "wss"):
+            port = "443"
+        return Url(scheme, host, port, "/" + path, query, fragment)
 
     def hostpair(self) -> tuple[str, int]:
         """
@@ -56,7 +69,7 @@ class Url:
             port = ""
         query = ""
         if self.query != {}:
-            query = "?" + "&".join([f"{key}={val}" for (key, val) in query.items])
+            query = "?" + "&".join([f"{key}={val}" for (key, val) in self.query.items()])
         fragment = self.fragment
         if fragment != "" and fragment[0] != "#":
             fragment = f"#{fragment}"
