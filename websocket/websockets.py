@@ -1,12 +1,12 @@
-import socket, os
-from typing import Self
+import socket, os, time
+from typing import Self, Optional
 from websocket import http
 from websocket.http import Request, Response
 from websocket.url import Url
+import threading
 
 
 class Frame:
-
     CONTINUE = 0x0
     TEXT = 0x1
     BINARY = 0x2
@@ -29,22 +29,37 @@ class Frame:
         self.__payload = payload
         self.length: int = len(payload)
         self.__mask = mask
-        self.is_masked = len(mask) == 0
+        self.is_masked = len(mask) != 0
 
     @staticmethod
-    def parse(raw_frame: bytes) -> Self | None:
+    def parse(raw_frame: bytes) -> Optional["Frame"]:
         """
         Parses a binary frame into a Frame object
 
         Args:
             raw_frame (bytes): The binary frame recieved from a websocket connection
         """
-        pass
+        opcode = int(raw_frame[0] & 0b0000_1111)
+        isMasked = bool(raw_frame[1] & 0b1000_0000)
+        mask = bytes()
+        length = int(raw_frame[1] & 0b01111_111)
+        idx = 2
+        if length == 126:
+            length = int(raw_frame[2:4])
+            idx = 4
+        elif length == 127:
+            length = int(raw_frame[2:10])
+            idx = 10
+        if isMasked:
+            mask = raw_frame[idx : idx + 4]
+            idx += 4
+        payload = raw_frame[idx:]
+        return Frame(opcode, payload, mask)
 
-    def __get_payload(self) -> str:
+    def __get_payload(self) -> bytes:
         return self.__payload
 
-    def __set_payload(self, payload) -> None:
+    def __set_payload(self, payload: bytes) -> None:
         self.__payload = payload
         self.length = len(payload)
 
@@ -80,7 +95,7 @@ class Frame:
             length_ext = bytes(self.length)
             length = 126
         else:
-            length_ext = []
+            length_ext = bytes()
             length = self.length
         return bytes(
             [fin | self.opcode, mask | length, *length_ext, *self.mask, *self.payload]
@@ -116,13 +131,20 @@ class WebSocket:
         self.is_server = is_server
         self.protocols = protocols
         self.extensions = extensions
+        self.str_msgs: list[str] = []
+        self.bin_msgs: list[bytes] = []
+        self.shutdown = False
+        self.listen_thread = threading.Thread(
+            target=WebSocket._start_listener, daemon=True, args=(self, self.str_msgs, self.bin_msgs)
+        )
+        self.listen_thread.start()
 
     @staticmethod
     def connect(
         url: Url | str | tuple[str, int],
         protocols: list[str] = [],
         extensions: list[str] = [],
-    ) -> Self | None:
+    ) -> Optional["WebSocket"]:
         """Connect to a websocket server and perform an opening handshake
 
         Args:
@@ -133,25 +155,56 @@ class WebSocket:
         Returns:
             Either an open WebSocket connection, or None if the connection failed
         """
+        if type(url) is Url:
+            server_url = url
         if type(url) is str:
-            url = Url.parse(url)
-        conn = socket.create_connection(url.hostpair(), 3)
+            try:
+                server_url = Url.parse(url)
+            except ValueError as e:
+                err = ValueError(f"Failed to parse provided url {url}")
+                err.add_note(str(e))
+                raise err
+        if type(url) is tuple:
+            server_url = Url("ws", url[0], str(url[1]))
+        conn = socket.create_connection(server_url.hostpair(), 3)
 
-        req = Request.new_ws(url)
+        req = Request.new_ws(server_url)
         ws_key = req.headers[http.HEADER_WS_KEY]
+        conn.sendall(bytes(req))
 
-        if protocols != []:
-            req.headers[http.HEADER_WS_PROTOCOL] = ", ".join(protocols)
-        if extensions != []:
-            req.headers[http.HEADER_WS_EXTENSIONS] = ", ".join(extensions)
-        conn.sendall(str(req))
+        data = bytes()
+        while len(data) == 0:
+            data = conn.recv(2048)
+            if not data:
+                continue
+            res = Response.parse(data.decode("utf-8"))
+            if not isinstance(res, Response) or not res.is_valid_ws(ws_key):
+                return None
+        return WebSocket(
+            conn, is_server=False, protocols=protocols, extensions=extensions
+        )
 
-        data = conn.recv(2048)
-        if not data:
-            return None
-        if Response.parse(data).is_valid_ws(ws_key):
-            return None
-        return WebSocket(conn, False, protocols, extensions)
+    def _start_listener(self, str_msgs, bin_msgs):
+        while not self.shutdown:
+            buf = bytes()
+            while len(buf) == 0:
+                try:
+                    buf = self.conn.recv(4096)
+                except TimeoutError:
+                    continue
+            frame = Frame.parse(buf)
+            if not isinstance(frame, Frame):
+                raise IOError("Recieved invalid data frame from WebSocket connection")
+            match frame.opcode:
+                case Frame.BINARY:
+                    bin_msgs.append(frame.payload)
+                case Frame.TEXT:
+                    str_msgs.append(frame.payload.decode())
+                case Frame.PING:
+                    self.pong()
+                case Frame.CLOSE:
+                    self.close()
+
 
     def send(self, msg: bytes) -> None:
         """
@@ -172,14 +225,9 @@ class WebSocket:
         Returns:
             bytes: The binary data recieved from the connection.
         """
-        buf = bytes()
-        while buf:
-            buf = self.conn.recv(4096)
-            data += buf
-        frame = Frame.parse(data)
-        if frame.opcode == Frame.CONTINUE:
-            return self.recv(continues=continues + frame.payload)
-        return continues + frame.payload
+        while len(self.bin_msgs) == 0:
+            time.sleep(0.25)
+        return self.bin_msgs.pop(0)
 
     def send_text(self, msg: str):
         """
@@ -189,31 +237,27 @@ class WebSocket:
             msg: The text data to send.
         """
         frame = Frame(
-            Frame.TEXT, msg, mask=os.urandom(4) if self.is_server else bytes()
+            Frame.TEXT, msg.encode(), mask=os.urandom(4) if self.is_server else bytes()
         )
         self.conn.sendall(bytes(frame))
 
-    def recv_text(self, continues="") -> str:
+    def recv_text(self) -> str:
         """
         Recieve text from the WebSocket connection.
 
         Returns:
             str: The binary data recieved from the connection.
         """
-        buf = bytes()
-        while buf:
-            buf = self.conn.recv(4096)
-            data += buf
-        frame = Frame.parse(data)
-        if frame.opcode == Frame.CONTINUE:
-            return self.recv(continues=continues + frame.payload)
-        return continues + frame.payload
+        while len(self.str_msgs) == 0:
+            time.sleep(0.25)
+        return self.str_msgs.pop(0)
 
     def close(self):
+        self.listen_thread.join()
         self.conn.close()
 
     def __enter__(self):
-        pass
+        return self
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         self.close()
@@ -226,7 +270,7 @@ class WebSocketServer:
         protocols: list[str] = [],
         extensions: list[str] = [],
     ) -> None:
-        self.connections: list[socket.socket] = []
+        self.connections: list[WebSocket] = []
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind(addr)
         self.sock.listen()
@@ -240,14 +284,16 @@ class WebSocketServer:
             conn.close()
             return None
         req = Request.parse(data.decode("utf-8"))
-        if req.is_valid_ws():
+        if not req.is_valid_ws():
             conn.close()
             return None
-        ws_key = req.headers[http]
+        ws_key = req.headers[http.HEADER_WS_KEY]
         res = Response.new_ws(ws_key)
         conn.sendall(str(res).encode("utf-8"))
 
-        ws = WebSocket(conn, True, self.protocols, self.extensions)
+        ws = WebSocket(
+            conn, is_server=True, protocols=self.protocols, extensions=self.extensions
+        )
         self.connections.append(ws)
         return ws
 
@@ -257,7 +303,7 @@ class WebSocketServer:
         self.sock.close()
 
     def __enter__(self):
-        pass
+        return self
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         self.close()
