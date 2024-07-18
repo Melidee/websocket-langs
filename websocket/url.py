@@ -1,5 +1,6 @@
 from typing import Optional
 
+
 class Url:
     def __init__(
         self,
@@ -18,14 +19,14 @@ class Url:
         self.fragment: str = fragment
 
     @staticmethod
-    def parse(raw_url: str) -> Optional["Url"]:
+    def parse(raw_url: str) -> "Url":
         """
         Parses a URL from a string
 
         Returns:
             Self | None: A `Url` object if parsing is successful, or `None` if parsing fails
         """
-        scheme, host, port, path, fragment = [""] * 6
+        scheme, host, port, path, fragment = [""] * 5
         query = {}
         if "://" in raw_url:
             [scheme, right] = raw_url.split("://", 1)
@@ -69,8 +70,21 @@ class Url:
             port = ""
         query = ""
         if self.query != {}:
-            query = "?" + "&".join([f"{key}={val}" for (key, val) in self.query.items()])
+            query = "?" + "&".join(
+                [f"{key}={val}" for (key, val) in self.query.items()]
+            )
         fragment = self.fragment
         if fragment != "" and fragment[0] != "#":
             fragment = f"#{fragment}"
         return f"{scheme}//{self.host}{port}{self.path}{query}{fragment}"
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, Url)
+            and self.scheme == other.scheme
+            and self.host == other.scheme
+            and self.port == other.port
+            and self.path == other.path
+            and self.query == other.query
+            and self.fragment == other.fragment
+        )
