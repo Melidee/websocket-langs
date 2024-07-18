@@ -15,7 +15,7 @@ class Request:
         method: str = "GET",
         url: str = "/",
         headers: dict[str, str] = {},
-        body: str = ""
+        body: str = "",
     ) -> None:
         self.method: str = method
         self.url: str = url
@@ -84,20 +84,18 @@ class Request:
 
     def __str__(self) -> str:
         return f"{self.method} {self.url} HTTP/1.1\r\n{format_headers(self.headers)}\r\n{self._body}"
-    
+
     def __bytes__(self) -> bytes:
-        return str(self).encode('utf-8')
+        return str(self).encode("utf-8")
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Request):
-            return False
         return (
-            self.method == other.method
+            isinstance(other, Request)
+            and self.method == other.method
             and self.url == other.url
             and self.headers == other.headers
             and self.body == other.body
         )
-
 
 
 class Response:
@@ -112,7 +110,7 @@ class Response:
     def parse(raw_response: str) -> Optional["Response"]:
         lines = raw_response.split("\r\n")
         lines, body_splits = lines[: lines.index("")], lines[lines.index("") + 1 :]
-        body = '\r\n'.join(body_splits)
+        body = "\r\n".join(body_splits)
         try:
             _proto, status = lines[0].split(" ", 1)
         except (ValueError, IndexError):
@@ -139,10 +137,10 @@ class Response:
 
     def is_valid_ws(self, ws_key):
         return (
-            self.status != "101 Switching Protocols"
-            or self.headers.get("Upgrade").casefold() != "websocket"
-            or self.headers.get("Connection").casefold() != "upgrade"
-            or self.headers.get(HEADER_WS_ACCEPT) != make_sec_ws_accept(ws_key)
+            self.status == "101 Switching Protocols"
+            and self.headers.get("Upgrade").casefold() == "websocket"
+            and self.headers.get("Connection").casefold() == "upgrade"
+            and self.headers.get(HEADER_WS_ACCEPT) == make_sec_ws_accept(ws_key)
         )
 
     def _get_body(self) -> str:
@@ -163,14 +161,12 @@ class Response:
         )
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Response):
-            return False
         return (
-            self.status == other.status
+            isinstance(other, Response)
+            and self.status == other.status
             and self.headers == other.headers
             and self.body == other.body
         )
-
 
 
 def format_headers(headers: dict[str, str]) -> str:
@@ -181,10 +177,10 @@ WS_MAGIC_WORD = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
 def make_sec_ws_accept(ws_key: str) -> str:
-    digest = hashlib.sha1((ws_key + WS_MAGIC_WORD).encode("utf-8"))
+    digest = hashlib.sha1((ws_key + WS_MAGIC_WORD).encode())
     hash = digest.digest()
-    return b64encode(hash).decode('utf-8')
+    return b64encode(hash).decode()
 
 
 def new_sec_ws_key() -> str:
-    return b64encode(os.urandom(16)).decode('utf-8')
+    return b64encode(os.urandom(16)).decode()
