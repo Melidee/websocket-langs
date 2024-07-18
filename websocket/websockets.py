@@ -135,7 +135,9 @@ class WebSocket:
         self.bin_msgs: list[bytes] = []
         self.shutdown = False
         self.listen_thread = threading.Thread(
-            target=WebSocket._start_listener, daemon=True, args=(self, self.str_msgs, self.bin_msgs)
+            target=WebSocket._start_listener,
+            daemon=True,
+            args=(self, self.str_msgs, self.bin_msgs),
         )
         self.listen_thread.start()
 
@@ -204,7 +206,6 @@ class WebSocket:
                     self.pong()
                 case Frame.CLOSE:
                     self.close()
-
 
     def send(self, msg: bytes) -> None:
         """
