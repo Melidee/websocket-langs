@@ -42,7 +42,6 @@ class Url:
             [query_raw, fragment] = right.split("#", 1)
             pairs = [pair.split("=") for pair in query_raw.split("&")]
             query = {key: val for [key, val] in pairs}
-        print()
         if port == "" and (scheme == "http" or scheme == "ws"):
             port = "80"
         if port == "" and (scheme == "https" or scheme == "wss"):
