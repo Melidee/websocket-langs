@@ -1,6 +1,6 @@
 import hashlib, os
 from base64 import b64encode, b64decode
-from typing import Self, Optional
+from typing import Optional
 
 HEADER_WS_VERSION = "Sec-WebSocket-Version"
 HEADER_WS_KEY = "Sec-WebSocket-Key"
