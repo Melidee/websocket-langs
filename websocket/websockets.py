@@ -1,8 +1,9 @@
 import socket, os, time
-from typing import Self, Optional
+from typing import Optional
 from websocket import http
 from websocket.http import Request, Response
 from websocket.url import Url
+from urllib.parse import urlparse
 import threading
 
 
@@ -37,7 +38,7 @@ class Frame:
         Parses a binary frame into a Frame object
 
         Args:
-            raw_frame (bytes): The binary frame recieved from a websocket connection
+            raw_frame (bytes): The binary frame received from a websocket connection
         """
         opcode = int(raw_frame[0] & 0b0000_1111)
         isMasked = bool(raw_frame[1] & 0b1000_0000)
@@ -125,7 +126,7 @@ class WebSocket:
                     a websocket handshake has already been performed.
             is_server: Describes if the connection is from a server or client.
             protocols: A list of protocols on top of the WebSocket connection. Defaults to [].
-            extensions: A list of extentions on top of the WebSocket connection. Defaults to [].
+            extensions: A list of extensions on top of the WebSocket connection. Defaults to [].
         """
         self.conn = conn
         self.is_server = is_server
@@ -143,7 +144,7 @@ class WebSocket:
 
     @staticmethod
     def connect(
-        url: Url | str | tuple[str, int],
+        url: str,
         protocols: list[str] = [],
         extensions: list[str] = [],
     ) -> Optional["WebSocket"]:
@@ -152,23 +153,19 @@ class WebSocket:
         Args:
             url: the url of the server to connect to
             protocols: an optional list of protocols to request from the server. Defaults to [].
-            extentions: an optional list of extentions to request from the server Defaults to [].
+            extensions: an optional list of extensions to request from the server Defaults to [].
 
         Returns:
             Either an open WebSocket connection, or None if the connection failed
         """
-        if type(url) is Url:
-            server_url = url
-        if type(url) is str:
-            try:
-                server_url = Url.parse(url)
-            except ValueError as e:
-                err = ValueError(f"Failed to parse provided url {url}")
-                err.add_note(str(e))
-                raise err
-        if type(url) is tuple:
-            server_url = Url("ws", url[0], str(url[1]))
-        conn = socket.create_connection(server_url.hostpair(), 3)
+        try:
+            server_url = urlparse(url)
+        except ValueError as e:
+            err = ValueError(f"Failed to parse provided url {url}")
+            err.add_note(str(e))
+            raise err
+        
+        conn = socket.create_connection((server_url.hostname, server_url.port), 3)
 
         req = Request.new_ws(server_url)
         ws_key = req.headers[http.HEADER_WS_KEY]
@@ -196,7 +193,7 @@ class WebSocket:
                     continue
             frame = Frame.parse(buf)
             if not isinstance(frame, Frame):
-                raise IOError("Recieved invalid data frame from WebSocket connection")
+                raise IOError("Received invalid data frame from WebSocket connection")
             match frame.opcode:
                 case Frame.BINARY:
                     bin_msgs.append(frame.payload)
@@ -219,15 +216,15 @@ class WebSocket:
         )
         self.conn.sendall(bytes(frame))
 
-    def recv(self, continues=bytes()) -> bytes:
+    def recv(self) -> bytes | None:
         """
-        Recieve bytes from the WebSocket connection.
+        Receive bytes from the WebSocket connection.
 
         Returns:
-            bytes: The binary data recieved from the connection.
+            bytes: The binary data received from the connection.
         """
-        while len(self.bin_msgs) == 0:
-            time.sleep(0.25)
+        if len(self.bin_msgs) == 0:
+            return None
         return self.bin_msgs.pop(0)
 
     def send_text(self, msg: str):
@@ -244,10 +241,10 @@ class WebSocket:
 
     def recv_text(self) -> str:
         """
-        Recieve text from the WebSocket connection.
+        Receive text from the WebSocket connection.
 
         Returns:
-            str: The binary data recieved from the connection.
+            str: The binary data received from the connection.
         """
         while len(self.str_msgs) == 0:
             time.sleep(0.25)
