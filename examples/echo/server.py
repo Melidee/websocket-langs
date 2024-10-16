@@ -1,4 +1,4 @@
-#!/bin/python3.12
+#!/bin/python3
 
 from websocket import WebSocketServer
 
@@ -6,7 +6,7 @@ port = 8080
 
 def main():
     with WebSocketServer(("127.0.0.1", port)) as server:
-        print(f"Server open on port 8080")
+        print(f"Server open on port {port}")
         while True:
             ws = server.accept()
             print(f"Connected to client")
