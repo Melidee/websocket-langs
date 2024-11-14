@@ -93,3 +93,34 @@ typedef struct {
     char **keys;
     char **vals;
 } Headers;
+
+Headers *new_headers() {
+    Headers *headers = (Headers *)malloc(sizeof(Headers));
+    headers->size = 0;
+    headers->capacity = 4;
+    *headers->keys = (char**)malloc(4 * sizeof(char*));
+    *headers->keys = (char**)malloc(4 * sizeof(char*));
+    return headers;
+}
+
+void append_header(Headers *headers, char *key, char *val) {
+    if (headers->capacity == headers->size) {
+        *headers->keys =
+            realloc(headers->keys, 2 * headers->capacity);
+        *headers->vals =
+            realloc(headers->vals, 2 * headers->capacity);
+    };
+
+    headers->keys[headers->size+1] = key;
+    headers->vals[headers->size+1] = val;
+    headers->size++;
+}
+
+char* get_header_value(Headers *headers, char *key) {
+    for (uint32_t i = 0; i <= headers->size; i++) {
+        if (strcmp(key, headers->keys[i]) == 0) {
+            return headers->vals[i];
+        }
+    }
+    return NULL;
+}
