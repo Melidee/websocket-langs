@@ -1,123 +1,114 @@
+#include <http.h>
+#include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct {
-    Method method;
-    char *path;
-    uint8_t proto_major;
-    uint8_t proto_minor;
-    Headers *headers;
-    char *body;
+Request *new_request(Method method) {
+    Request *request = (Request *)malloc(sizeof(request));
+    request->method = method;
+    request->path = "";
+    request->proto = "http/1.1";
+    request->headers = new_headers();
+    request->body = "";
+    return request;
+}
 
-} Request;
+Request *parse_request(char *req, uint32_t size) {
+    int i;
+    char *method_str, *path, *proto, *headers_str, *body;
+    i = strget_sep(req, " ", method_str);
+    i = strget_sep(req, " ", path);
+    i = strget_sep(req, "\r\n", proto);
+    i = strget_sep(req, "\r\n\r\n", headers_str);
+    uint32_t body_size = ((size - i) + 1) * sizeof(char);
+    body = (char *)malloc(body_size);
+    strncpy(body, &req[i], body_size);
 
-typedef enum {
-    METHOD_GET,
-    METHOD_POST,
-    METHOD_PUT,
-    METHOD_DELETE,
-    METHOD_PATCH,
-    METHOD_HEAD,
-    METHOD_OPTIONS,
-    METHOD_TRACE,
-    METHOD_CONNECT,
-} Method;
+    Method method = method_from_str(method_str);
+    path[strlen(path) - 1] = '\0';
+    proto[strlen(proto) - 2] = '\0';
+    Headers *headers = parse_headers(headers_str);
 
-typedef struct {
-    uint8_t proto_major;
-    uint8_t proto_minor;
-    Status status;
-    Headers *Headers;
-    char *body;
-} Response;
+    Request *request = new_request(method);
+    request->path = path;
+    request->proto = proto;
+    request->headers = headers;
+    request->body = body;
+    free(method_str);
+    free(headers_str);
+    free(req);
+    return request;
+}
 
-typedef enum {
-    HTTP_100_CONTINUE,
-    HTTP_101_SWITCHING_PROTOCOLS,
-    HTTP_200_OK,
-    HTTP_201_CREATED,
-    HTTP_202_ACCEPTED,
-    HTTP_203_NON_AUTHORITATIVE_INFORMATION,
-    HTTP_204_NO_CONTENT,
-    HTTP_205_RESET_CONTENT,
-    HTTP_206_PARTIAL_CONTENT,
-    HTTP_300_MULTIPLE_CHOICES,
-    HTTP_301_MOVED_PERMANENTLY,
-    HTTP_302_FOUND,
-    HTTP_303_SEE_OTHER,
-    HTTP_304_NOT_MODIFIED,
-    HTTP_305_USE_PROXY,
-    HTTP_307_TEMPORARY_REDIRECT,
-    HTTP_400_BAD_REQUEST,
-    HTTP_401_UNAUTHORIZED,
-    HTTP_402_PAYMENT_REQUIRED,
-    HTTP_403_FORBIDDEN,
-    HTTP_404_NOT_FOUND,
-    HTTP_405_METHOD_NOT_ALLOWED,
-    HTTP_406_NOT_ACCEPTABLE,
-    HTTP_407_PROXY_AUTHENTICATION_REQUIRED,
-    HTTP_408_REQUEST_TIMEOUT,
-    HTTP_409_CONFLICT,
-    HTTP_410_GONE,
-    HTTP_411_LENGTH_REQUIRED,
-    HTTP_412_PRECONDITION_FAILED,
-    HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-    HTTP_414_REQUEST_URI_TOO_LONG,
-    HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-    HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE,
-    HTTP_417_EXPECTATION_FAILED,
-    HTTP_422_UNPROCESSABLE_ENTITY,
-    HTTP_423_LOCKED,
-    HTTP_424_FAILED_DEPENDENCY,
-    HTTP_426_UPGRADE_REQUIRED,
-    HTTP_428_PRECONDITION_REQUIRED,
-    HTTP_429_TOO_MANY_REQUESTS,
-    HTTP_431_REQUEST_HEADER_FIELDS_TOO_LARGE,
-    HTTP_500_INTERNAL_SERVER_ERROR,
-    HTTP_501_NOT_IMPLEMENTED,
-    HTTP_502_BAD_GATEWAY,
-    HTTP_503_SERVICE_UNAVAILABLE,
-    HTTP_504_GATEWAY_TIMEOUT,
-    HTTP_505_HTTP_VERSION_NOT_SUPPORTED,
-    HTTP_506_VARIANT_ALSO_NEGOTIATES,
-    HTTP_507_INSUFFICIENT_STORAGE,
-    HTTP_508_LOOP_DETECTED,
-    HTTP_510_NOT_EXTENDED,
-    HTTP_511_NETWORK_AUTHENTICATION_REQUIRED,
-} Status;
+char *request_to_str(Request *request) {
+    return sprintf("%s %s %s\r\n%s\r\n%s", method_strs[request->method],
+                   request->path, request->proto,
+                   headers_to_str(request->headers), request->body);
+}
 
-typedef struct {
-    uint32_t size;
-    uint32_t capacity;
-    char **keys;
-    char **vals;
-} Headers;
+uint32_t strget_sep(char *req, char *separator, char *dest) {
+    uint32_t i = 0;
+    while (strncmp(req, separator, strlen(separator)) != 0) {
+        i++;
+    }
+    uint32_t len = i + strlen(separator);
+    *dest = (char *)malloc(len * sizeof(char));
+    strncpy(dest, req, len);
+    dest[len - 1] = '\0';
+    req = &req[len];
+    return len;
+}
+
+Method method_from_str(char *method_str) {
+    if (strncmp(method_str, "GET", 3) == 0) {
+        return METHOD_GET;
+    } else if (strncmp(method_str, "POST", 4) == 0) {
+        return METHOD_POST;
+    } else if (strncmp(method_str, "PUT", 4) == 0) {
+        return METHOD_PUT;
+    } else if (strncmp(method_str, "DELETE", 6) == 0) {
+        return METHOD_DELETE;
+    } else if (strncmp(method_str, "PATCH", 5) == 0) {
+        return METHOD_PATCH;
+    } else if (strncmp(method_str, "HEAD", 4) == 0) {
+        return METHOD_HEAD;
+    } else if (strncmp(method_str, "OPTIONS", 7) == 0) {
+        return METHOD_OPTIONS;
+    } else if (strncmp(method_str, "TRACE", 5) == 0) {
+        return METHOD_TRACE;
+    } else if (strncmp(method_str, "CONNECT", 7) == 0) {
+        return METHOD_CONNECT;
+    }
+}
 
 Headers *new_headers() {
     Headers *headers = (Headers *)malloc(sizeof(Headers));
     headers->size = 0;
     headers->capacity = 4;
-    *headers->keys = (char**)malloc(4 * sizeof(char*));
-    *headers->keys = (char**)malloc(4 * sizeof(char*));
+    *headers->keys = (char **)malloc(4 * sizeof(char *));
+    *headers->keys = (char **)malloc(4 * sizeof(char *));
     return headers;
 }
 
+Headers *parse_headers(char *headers_str) {}
+
+char *headers_to_str(Headers *headers) {}
+
 void append_header(Headers *headers, char *key, char *val) {
     if (headers->capacity == headers->size) {
-        *headers->keys =
-            realloc(headers->keys, 2 * headers->capacity);
-        *headers->vals =
-            realloc(headers->vals, 2 * headers->capacity);
+        *headers->keys = realloc(headers->keys, 2 * headers->capacity);
+        *headers->vals = realloc(headers->vals, 2 * headers->capacity);
     };
 
-    headers->keys[headers->size+1] = key;
-    headers->vals[headers->size+1] = val;
+    headers->keys[headers->size + 1] = key;
+    headers->vals[headers->size + 1] = val;
     headers->size++;
 }
 
-char* get_header_value(Headers *headers, char *key) {
-    for (uint32_t i = 0; i <= headers->size; i++) {
+char *get_header_value(Headers *headers, char *key) {
+    for (int32_t i = 0; i <= headers->size; i++) {
         if (strcmp(key, headers->keys[i]) == 0) {
             return headers->vals[i];
         }
